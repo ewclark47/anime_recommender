@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anime Recommendation UI</title>
+    <link rel="stylesheet" href="./styles.css?v=9" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="card">
+        <header class="hero">
+          <p class="eyebrow">Streamline Discovery</p>
+          <h1>Anime Recommender</h1>
+          <p class="subtitle">Search once, then browse recommendations like a streaming shelf.</p>
+        </header>
+
+        <section class="auth-panel">
+          <h2>Account</h2>
+          <div id="auth-form">
+            <div class="input-row">
+              <input id="auth-username" type="text" placeholder="Username" autocomplete="username" />
+              <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
+            </div>
+            <div class="input-row">
+              <button id="register-button" type="button">Register</button>
+              <button id="login-button" type="button">Login</button>
+            </div>
+          </div>
+
+          <div id="auth-signed-in" class="hidden">
+            <div class="signed-in-row">
+              <span id="signed-in-label">Signed in</span>
+              <button id="signout-button" type="button">Sign out</button>
+            </div>
+          </div>
+
+          <p id="auth-message" class="status-message" aria-live="polite"></p>
+        </section>
+
+        <nav class="tab-nav">
+          <button id="tab-recommend" class="tab-button active" type="button" onclick="setActiveTab('recommend')">Recommend</button>
+          <button id="tab-favorites" class="tab-button" type="button" onclick="setActiveTab('favorites')">Favorites</button>
+          <button id="tab-explore" class="tab-button" type="button" onclick="setActiveTab('explore')">Explore</button>
+        </nav>
+
+        <section id="recommend-tab" class="tab-panel">
+          <section id="mode-panel" class="mode-panel hidden">
+            <h2>Recommendation Mode</h2>
+            <div class="toggle-group">
+              <label class="mode-option">
+                <input type="radio" name="mode" value="content" checked />
+                <span>Content-based</span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="mode" value="user" />
+                <span>User similarity</span>
+              </label>
+            </div>
+          </section>
+
+          <section id="content-panel">
+            <form id="recommendation-form" class="recommendation-form">
+              <label for="anime-title">Anime Title (content-based mode)</label>
+              <div class="input-row">
+                <input
+                  id="anime-title"
+                  name="animeTitle"
+                  type="text"
+                  placeholder="e.g. Fullmetal Alchemist"
+                  autocomplete="off"
+                />
+                <button type="submit">Get Recommendations</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="user-mode-panel" class="hidden">
+            <div class="input-row">
+              <button id="user-recommend-button" type="button">Get User Similarity Recommendations</button>
+            </div>
+          </section>
+
+          <p id="status-message" class="status-message" aria-live="polite"></p>
+
+          <section id="results" class="results" aria-live="polite" hidden>
+            <div class="results-header">
+              <h2>Recommended for <span id="query-title"></span></h2>
+              <div class="carousel-controls">
+                <button id="scroll-left" type="button" aria-label="Scroll recommendations left">‹</button>
+                <button id="scroll-right" type="button" aria-label="Scroll recommendations right">›</button>
+              </div>
+            </div>
+            <div id="recommendation-list" class="recommendation-row"></div>
+          </section>
+        </section>
+
+        <section id="favorites-tab" class="tab-panel hidden">
+          <section id="favorites-panel" class="favorites-panel">
+            <h2>Favorites</h2>
+            <p id="favorites-login-note" class="status-message hidden">Log in to manage favorites.</p>
+            <div id="favorites-controls">
+              <div class="input-row">
+                <input id="favorite-search" type="text" placeholder="Search anime to favorite (e.g. Naruto)" />
+                <button id="favorite-search-button" type="button">Search</button>
+              </div>
+              <div id="favorite-search-results" class="recommendation-row"></div>
+              <h3>Your Favorites</h3>
+              <div class="results-header compact">
+                <div></div>
+                <div class="carousel-controls">
+                  <button id="favorites-scroll-left" type="button" aria-label="Scroll favorites left">‹</button>
+                  <button id="favorites-scroll-right" type="button" aria-label="Scroll favorites right">›</button>
+                </div>
+              </div>
+              <div id="favorites-list" class="recommendation-row"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="explore-tab" class="tab-panel hidden">
+          <section id="explore-panel" class="explore-panel">
+            <div class="results-header">
+              <div>
+                <h2>Explore</h2>
+                <p class="subtitle-small">Top rated anime</p>
+              </div>
+              <div class="carousel-controls">
+                <button id="explore-scroll-left" type="button" aria-label="Scroll explore left">‹</button>
+                <button id="explore-scroll-right" type="button" aria-label="Scroll explore right">›</button>
+              </div>
+            </div>
+            <div id="top-rated-list" class="recommendation-row"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="summary-modal" class="summary-modal hidden" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
+      <div id="summary-modal-backdrop" class="summary-modal-backdrop"></div>
+      <section class="summary-modal-content">
+        <div class="summary-modal-header">
+          <h2 id="summary-modal-title">Anime Summary</h2>
+          <button id="summary-modal-close" type="button" aria-label="Close summary">×</button>
+        </div>
+        <p id="summary-modal-source" class="summary-source"></p>
+        <p id="summary-modal-body" class="summary-body">Loading summary...</p>
+      </section>
+    </div>
+
+    <script src="./script.js?v=14"></script>
+  </body>
+</html>

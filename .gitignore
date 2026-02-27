@@ -1,0 +1,12 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+
+# Ignore big data files that are not necessary for the project
+dataset.pkl
+pretrained_bert.pth
+random-sample_size100-seed98765.pkl
+ratings.csv
+ratings.dat
+ratings.npy
