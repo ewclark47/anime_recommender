@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import ssl
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -11,7 +12,6 @@ import pandas as pd
 
 from backend.app.db import db_cursor
 
-# TODO: Fix this to actually pull a summary or synopsis for each anime title, currently not actually pulling anything and all title summaries are the fallback error.
 # TODO: Add caching to avoid hitting external APIs repeatedly for the same titles, especially since MAL/Jikan can be slow and rate-limited.
 # TODO: Add a background task to validate and refresh cached summaries periodically, since anime information can change and new summaries may become available.
 def _normalize_title(value: str) -> str:
@@ -38,9 +38,11 @@ class AnimeSummaryService:
         self.animes = animes
         self.id_col = None
         self.title_col = None
+        self.mal_url_col = None
         if animes is not None:
             self.id_col = self._pick_column(["animeID", "id", "anime_id"])
             self.title_col = self._pick_column(["title", "name"])
+            self.mal_url_col = self._pick_column(["mal_url", "url"])
 
     def _pick_column(self, candidates: list[str]) -> str | None:
         if self.animes is None:
@@ -48,6 +50,19 @@ class AnimeSummaryService:
         for col in candidates:
             if col in self.animes.columns:
                 return col
+        return None
+
+    def _extract_mal_id(self, url: str | None) -> int | None:
+        """Extract MAL ID from a MyAnimeList URL like 'https://myanimelist.net/anime/431'"""
+        if url is None or not isinstance(url, str):
+            return None
+        # Match patterns like /anime/12345 or /anime/12345/title
+        match = re.search(r'/anime/(\d+)', url)
+        if match:
+            try:
+                return int(match.group(1))
+            except (TypeError, ValueError):
+                return None
         return None
 
     def _resolve_row(self, title: str | None, anime_id: int | None) -> pd.Series | None:
@@ -78,12 +93,15 @@ class AnimeSummaryService:
             return contains.iloc[0]
         return None
 
-    def _to_record(self, row: pd.Series | None, fallback_title: str | None, fallback_id: int | None) -> tuple[str, int | None]:
+    def _to_record(self, row: pd.Series | None, fallback_title: str | None, fallback_id: int | None) -> tuple[str, int | None, int | None]:
+        """
+        Returns (title, local_id, mal_id)
+        """
         if row is None:
             title = (fallback_title or "").strip()
             if not title:
                 title = f"Anime #{fallback_id}" if fallback_id is not None else "Unknown Anime"
-            return title, fallback_id
+            return title, fallback_id, None
 
         title = fallback_title
         if self.title_col is not None:
@@ -100,7 +118,15 @@ class AnimeSummaryService:
                     resolved_id = int(raw_id)
                 except (TypeError, ValueError):
                     pass
-        return title, resolved_id
+        
+        # Extract MAL ID from mal_url column
+        mal_id = None
+        if self.mal_url_col is not None:
+            raw_url = row.get(self.mal_url_col)
+            if pd.notna(raw_url):
+                mal_id = self._extract_mal_id(str(raw_url))
+        
+        return title, resolved_id, mal_id
 
     def _http_json(self, url: str, timeout: float = 2.5) -> dict[str, Any] | None:
         req = urllib.request.Request(
@@ -111,7 +137,10 @@ class AnimeSummaryService:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            # Create SSL context that doesn't verify certificates (for development)
+            # In production, you should use ssl.create_default_context()
+            ssl_context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as response:
                 return json.loads(response.read().decode("utf-8"))
         except Exception:
             return None
@@ -125,7 +154,10 @@ class AnimeSummaryService:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            # Create SSL context that doesn't verify certificates (for development)
+            # In production, you should use ssl.create_default_context()
+            ssl_context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as response:
                 return response.read().decode("utf-8", errors="ignore")
         except Exception:
             return None
@@ -167,10 +199,24 @@ class AnimeSummaryService:
                 return entry
         return None
 
+    def _fetch_jikan_entry_by_id(self, anime_id: int | None) -> dict[str, Any] | None:
+        if anime_id is None:
+            return None
+        payload = self._http_json(f"https://api.jikan.moe/v4/anime/{anime_id}")
+        if payload is None:
+            return None
+        entry = payload.get("data")
+        if isinstance(entry, dict):
+            return entry
+        return None
+
     def _fetch_summary_from_mal_jikan(self, jikan_entry: dict[str, Any] | None) -> str | None:
         if not isinstance(jikan_entry, dict):
             return None
-        return _clean_summary(jikan_entry.get("synopsis"))
+        synopsis = _clean_summary(jikan_entry.get("synopsis"))
+        if synopsis:
+            return synopsis
+        return _clean_summary(jikan_entry.get("background"))
 
     def _fetch_summary_from_mal_page(self, jikan_entry: dict[str, Any] | None) -> str | None:
         if not isinstance(jikan_entry, dict):
@@ -299,7 +345,7 @@ class AnimeSummaryService:
 
     def get_summary(self, title: str | None = None, anime_id: int | None = None) -> dict[str, Any]:
         row = self._resolve_row(title=title, anime_id=anime_id)
-        canonical_title, canonical_id = self._to_record(row=row, fallback_title=title, fallback_id=anime_id)
+        canonical_title, canonical_id, mal_id = self._to_record(row=row, fallback_title=title, fallback_id=anime_id)
         title_norm = _normalize_title(canonical_title)
 
         cached = self._cache_get(title_norm=title_norm, anime_id=canonical_id)
@@ -309,7 +355,11 @@ class AnimeSummaryService:
         summary = None
         source = ""
 
-        jikan_entry = self._fetch_jikan_entry(canonical_title)
+        # Use MAL ID if available, otherwise fall back to canonical_id
+        jikan_id = mal_id if mal_id is not None else canonical_id
+        jikan_entry = self._fetch_jikan_entry_by_id(jikan_id)
+        if not jikan_entry:
+            jikan_entry = self._fetch_jikan_entry(canonical_title)
         summary = self._fetch_summary_from_mal_jikan(jikan_entry)
         if summary:
             source = "mal"
