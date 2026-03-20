@@ -1,0 +1,13 @@
+# Large datasets not needed for the API
+ratings.csv
+ratings.dat
+ratings.npy
+dataset.pkl
+random-sample_size100-seed98765.pkl
+pretrained_bert.pth
+EDA.ipynb
+
+# Local artifacts
+.venv/
+__pycache__/
+*.pyc

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" },
+    { "src": "frontend/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/health", "dest": "api/index.py" },
+    { "src": "/anime(?:/.*)?", "dest": "api/index.py" },
+    { "src": "/recommend(?:/.*)?", "dest": "api/index.py" },
+    { "src": "/auth(?:/.*)?", "dest": "api/index.py" },
+    { "src": "/users(?:/.*)?", "dest": "api/index.py" },
+    { "src": "/", "dest": "frontend/index.html" },
+    { "src": "/(.*)", "dest": "frontend/$1" }
+  ]
+}

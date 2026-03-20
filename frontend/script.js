@@ -48,7 +48,7 @@ const summaryModalTitle = document.querySelector("#summary-modal-title");
 const summaryModalSource = document.querySelector("#summary-modal-source");
 const summaryModalBody = document.querySelector("#summary-modal-body");
 
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8000`;
+const API_BASE_URL = `${window.location.origin}`;
 const USER_STORAGE_KEY = "anime_recommender_user";
 const summaryCache = new Map();
 
