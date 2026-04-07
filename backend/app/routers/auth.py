@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from backend.app.db import db_cursor
+from backend.app.db import db_cursor, using_postgres
 from backend.app.schemas import AuthRequest, AuthResponse, UserResponse
 from backend.app.services.auth import hash_password, verify_password
 
@@ -16,18 +16,29 @@ def register(payload: AuthRequest) -> AuthResponse:
         raise HTTPException(status_code=400, detail="Username and password are required")
 
     with db_cursor() as (_, cur):
-        existing = cur.execute(
+        cur.execute(
             "SELECT id FROM users WHERE username = ?",
             (username,),
-        ).fetchone()
+        )
+        existing = cur.fetchone()
         if existing:
             raise HTTPException(status_code=409, detail="Username already exists")
 
-        cur.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (username, hash_password(payload.password)),
-        )
-        user_id = int(cur.lastrowid)
+        if using_postgres():
+            cur.execute(
+                "INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id",
+                (username, hash_password(payload.password)),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise HTTPException(status_code=500, detail="Failed to create user")
+            user_id = int(row["id"])
+        else:
+            cur.execute(
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                (username, hash_password(payload.password)),
+            )
+            user_id = int(cur.lastrowid)
 
     return AuthResponse(user=UserResponse(id=user_id, username=username))
 
@@ -39,10 +50,11 @@ def login(payload: AuthRequest) -> AuthResponse:
         raise HTTPException(status_code=400, detail="Username and password are required")
 
     with db_cursor() as (_, cur):
-        row = cur.execute(
+        cur.execute(
             "SELECT id, username, password_hash FROM users WHERE username = ?",
             (username,),
-        ).fetchone()
+        )
+        row = cur.fetchone()
 
     if row is None or not verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")

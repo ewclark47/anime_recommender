@@ -31,6 +31,10 @@ def _use_postgres() -> bool:
     return bool(_get_database_url())
 
 
+def using_postgres() -> bool:
+    return _use_postgres()
+
+
 class _CursorWrapper:
     def __init__(self, cursor, use_postgres: bool):
         self._cursor = cursor
@@ -43,10 +47,12 @@ class _CursorWrapper:
         return query.replace("?", "%s")
 
     def execute(self, query, params=None):
-        return self._cursor.execute(self._translate(query), params or ())
+        self._cursor.execute(self._translate(query), params or ())
+        return self
 
     def executemany(self, query, param_seq):
-        return self._cursor.executemany(self._translate(query), param_seq)
+        self._cursor.executemany(self._translate(query), param_seq)
+        return self
 
     def fetchone(self):
         return self._cursor.fetchone()

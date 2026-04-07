@@ -293,7 +293,7 @@ class AnimeSummaryService:
         with db_cursor() as (_, cur):
             row = None
             if anime_id is not None:
-                row = cur.execute(
+                cur.execute(
                     """
                     SELECT anime_id, title, summary, source
                     FROM anime_summaries
@@ -301,9 +301,10 @@ class AnimeSummaryService:
                     LIMIT 1
                     """,
                     (anime_id,),
-                ).fetchone()
+                )
+                row = cur.fetchone()
             if row is None:
-                row = cur.execute(
+                cur.execute(
                     """
                     SELECT anime_id, title, summary, source
                     FROM anime_summaries
@@ -311,7 +312,8 @@ class AnimeSummaryService:
                     LIMIT 1
                     """,
                     (title_norm,),
-                ).fetchone()
+                )
+                row = cur.fetchone()
 
         if row is None:
             return None
