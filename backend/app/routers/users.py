@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 
-from backend.app.db import db_cursor
+from backend.app.db import db_cursor, using_postgres
 from backend.app.schemas import FavoriteItem, FavoriteRequest, FavoritesResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -44,7 +44,8 @@ def _title_lookup() -> dict[int, dict]:
 
 def _ensure_user_exists(user_id: int) -> None:
     with db_cursor() as (_, cur):
-        row = cur.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+        cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -53,10 +54,11 @@ def _ensure_user_exists(user_id: int) -> None:
 def list_favorites(user_id: int) -> FavoritesResponse:
     _ensure_user_exists(user_id)
     with db_cursor() as (_, cur):
-        rows = cur.execute(
+        cur.execute(
             "SELECT anime_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,),
-        ).fetchall()
+        )
+        rows = cur.fetchall()
 
     lookup = _title_lookup()
     favorites = [
@@ -75,10 +77,17 @@ def add_favorite(user_id: int, payload: FavoriteRequest) -> FavoritesResponse:
     _ensure_user_exists(user_id)
     anime_id = payload.anime_id
     with db_cursor() as (_, cur):
-        cur.execute(
-            "INSERT OR IGNORE INTO favorites (user_id, anime_id) VALUES (?, ?)",
-            (user_id, anime_id),
-        )
+        if using_postgres():
+            cur.execute(
+                "INSERT INTO favorites (user_id, anime_id) VALUES (?, ?) "
+                "ON CONFLICT (user_id, anime_id) DO NOTHING",
+                (user_id, anime_id),
+            )
+        else:
+            cur.execute(
+                "INSERT OR IGNORE INTO favorites (user_id, anime_id) VALUES (?, ?)",
+                (user_id, anime_id),
+            )
     return list_favorites(user_id=user_id)
 
 
